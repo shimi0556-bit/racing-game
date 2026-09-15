@@ -15,9 +15,11 @@
       best: "שיא",
       speed: "מהירות",
       standings: "דירוג",
+      title: "ניאון רייסר",
+      subtitle: "Neon Racer",
       eyebrow: "לילה על האספלט",
       lead: "שלוש הקפות במסלול לילי מול שלוש מכוניות יריבות. הישארו על הכביש, חתכו פניות בזהירות, ונצחו את השעון.",
-      ctrl_kb: "מקלדת: חצים או WASD · בלם: Space",
+      ctrl_kb: "מקלדת: חצים או WASD להגה · ↑/W האצה · Space בלם — הרכב נוסע גם בלי גז",
       ctrl_touch: "מובייל: כפתורי הגה וגז על המסך",
       ctrl_mute: "M להשתקה · R להתחלה מחדש אחרי סיום",
       start: "התחל מירוץ",
@@ -46,9 +48,11 @@
       best: "Best",
       speed: "Speed",
       standings: "Field",
+      title: "Neon Racer",
+      subtitle: "ניאון רייסר",
       eyebrow: "Night on the asphalt",
       lead: "Three laps on a neon circuit against three rival cars. Stay on the road, brake for corners, and beat the clock.",
-      ctrl_kb: "Keyboard: arrows or WASD · Brake: Space",
+      ctrl_kb: "Keyboard: arrows or WASD to steer · ↑/W boost · Space brake — the car rolls on its own",
       ctrl_touch: "Mobile: on-screen steer and throttle",
       ctrl_mute: "M to mute · R to restart after finish",
       start: "Start race",
@@ -448,7 +452,7 @@
 
   /* ---------- cars ---------- */
   const CAR_DEFS = [
-    { id: "player", color: "#22d3ee", accent: "#ecfeff", maxSpeed: 430, accel: 240, isPlayer: true },
+    { id: "player", color: "#22d3ee", accent: "#ecfeff", maxSpeed: 440, accel: 280, isPlayer: true },
     { id: "razer", color: "#f472b6", accent: "#fce7f3", maxSpeed: 408, accel: 225, isPlayer: false, skill: 0.92 },
     { id: "volt", color: "#fbbf24", accent: "#fef3c7", maxSpeed: 398, accel: 218, isPlayer: false, skill: 0.84 },
     { id: "nyx", color: "#a3e635", accent: "#ecfccb", maxSpeed: 388, accel: 210, isPlayer: false, skill: 0.76 },
@@ -470,12 +474,18 @@
     }
 
     reset(track, slot) {
-      const dist = -36 - slot * 48;
-      const side = slot % 2 === 0 ? -20 : 22;
+      const dist = -80 - slot * 52;
+      const side = slot % 2 === 0 ? -18 : 18;
       const p = track.atDist(dist);
       this.x = p.x + p.nx * side;
       this.y = p.y + p.ny * side;
       this.angle = p.angle;
+      const snap = track.nearest(this.x, this.y);
+      if (snap.dist > track.halfW * 0.55) {
+        this.x = snap.x + snap.nx * side;
+        this.y = snap.y + snap.ny * side;
+        this.angle = snap.angle;
+      }
       this.speed = 0;
       this.steer = 0;
       this.throttle = 0;
@@ -561,13 +571,16 @@
         const dx = this.x - after.x;
         const dy = this.y - after.y;
         const d = hypot(dx, dy) || 1;
-        this.x = after.x + (dx / d) * (wall - 1);
-        this.y = after.y + (dy / d) * (wall - 1);
+        const inside = track.halfW - 14;
+        this.x = after.x + (dx / d) * inside;
+        this.y = after.y + (dy / d) * inside;
         const impact = Math.abs(this.speed);
-        this.speed *= -0.18;
-        this.angle += wrapAngle(after.angle - this.angle) * 0.35;
-        this.crashT = 0.28;
-        if (impact > 80 && this.isPlayer) hit(impact);
+        this.angle = after.angle;
+        this.speed = Math.abs(this.speed) * 0.35;
+        if (this.crashT <= 0) {
+          this.crashT = 0.4;
+          if (impact > 70 && this.isPlayer) hit(impact);
+        }
       }
     }
 
@@ -599,6 +612,20 @@
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.rotate(this.angle);
+      if (this.isPlayer) {
+        ctx.save();
+        ctx.rotate(-this.angle);
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.moveTo(0, -28);
+        ctx.lineTo(6, -18);
+        ctx.lineTo(-6, -18);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 18;
+      }
       ctx.fillStyle = "rgba(0,0,0,0.35)";
       ctx.beginPath();
       ctx.ellipse(2, 5, 16, 8, 0, 0, Math.PI * 2);
@@ -606,6 +633,7 @@
       roundRect(ctx, -16, -8, 32, 16, 5);
       ctx.fillStyle = this.color;
       ctx.fill();
+      ctx.shadowBlur = 0;
       ctx.fillStyle = this.accent;
       ctx.globalAlpha = 0.85;
       roundRect(ctx, 2, -6, 10, 12, 3);
@@ -665,51 +693,70 @@
 
   /* ---------- input ---------- */
   const keys = new Set();
-  const touch = { left: false, right: false, gas: false, brake: false };
+  const touch = { left: false, right: false, gas: false, brake: false, stickyGas: false };
+
+  function rememberKey(e, down) {
+    const tokens = [e.code, e.key, (e.key || "").toLowerCase()].filter(Boolean);
+    tokens.forEach((t) => (down ? keys.add(t) : keys.delete(t)));
+  }
+
+  function held(list) {
+    return list.some((k) => keys.has(k));
+  }
+
+  function paintTouch() {
+    document.querySelectorAll("#touch [data-touch]").forEach((btn) => {
+      const name = btn.getAttribute("data-touch");
+      const on = !!touch[name] || (name === "gas" && touch.stickyGas);
+      btn.classList.toggle("is-down", on);
+    });
+  }
 
   function bindInput() {
+    canvas.tabIndex = 0;
     window.addEventListener("keydown", (e) => {
-      keys.add(e.code);
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) e.preventDefault();
-      if (e.code === "KeyM") toggleMute();
-      if (e.code === "KeyR" && game.state === "finish") startRace();
-      if ((e.code === "Enter" || e.code === "Space") && (game.state === "menu" || game.state === "finish")) {
+      rememberKey(e, true);
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code) || e.key === " ") {
+        e.preventDefault();
+      }
+      if (e.code === "KeyM" || e.key === "m" || e.key === "M") toggleMute();
+      if ((e.code === "KeyR" || e.key === "r" || e.key === "R") && game.state === "finish") startRace();
+      if ((e.code === "Enter" || e.code === "Space" || e.key === "Enter") && (game.state === "menu" || game.state === "finish")) {
         if (game.state === "menu") startRace();
       }
     });
-    window.addEventListener("keyup", (e) => keys.delete(e.code));
+    window.addEventListener("keyup", (e) => rememberKey(e, false));
     const layer = $("touch");
-    const setBtn = (name, down, el) => {
+    const setBtn = (name, down) => {
       touch[name] = down;
-      if (el) el.classList.toggle("is-down", down);
+      if (name === "gas" && down) touch.stickyGas = true;
+      if (name === "brake" && down) touch.stickyGas = false;
+      paintTouch();
     };
     const bindBtn = (btn) => {
       const name = btn.getAttribute("data-touch");
-      const on = (ev) => {
+      btn.addEventListener("pointerdown", (ev) => {
         ev.preventDefault();
-        setBtn(name, true, btn);
-      };
-      const off = (ev) => {
+        btn.setPointerCapture(ev.pointerId);
+        setBtn(name, true);
+      });
+      btn.addEventListener("pointerup", (ev) => {
         ev.preventDefault();
-        setBtn(name, false, btn);
-      };
-      btn.addEventListener("pointerdown", on);
-      btn.addEventListener("pointerup", off);
-      btn.addEventListener("pointercancel", off);
-      btn.addEventListener("pointerleave", off);
+        setBtn(name, false);
+      });
+      btn.addEventListener("pointercancel", () => setBtn(name, false));
     };
     layer.querySelectorAll("button").forEach(bindBtn);
-    const coarse = window.matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
-    layer.hidden = !coarse;
+    layer.hidden = false;
   }
 
   function playerControls() {
-    const up = keys.has("ArrowUp") || keys.has("KeyW") || touch.gas;
-    const down = keys.has("ArrowDown") || keys.has("KeyS") || keys.has("Space") || touch.brake;
-    const left = keys.has("ArrowLeft") || keys.has("KeyA") || touch.left;
-    const right = keys.has("ArrowRight") || keys.has("KeyD") || touch.right;
+    const up = held(["ArrowUp", "KeyW", "w", "W"]) || touch.gas || touch.stickyGas;
+    const down = held(["ArrowDown", "KeyS", "s", "S", "Space", " "]) || touch.brake;
+    const left = held(["ArrowLeft", "KeyA", "a", "A"]) || touch.left;
+    const right = held(["ArrowRight", "KeyD", "d", "D"]) || touch.right;
     return {
-      throttle: up ? 1 : 0,
+      throttle: down ? 0 : up ? 1 : 0.58,
       brake: down ? 1 : 0,
       steer: (right ? 1 : 0) - (left ? 1 : 0),
     };
@@ -837,6 +884,9 @@
     game.raceStart = 0;
     game.shake = 0;
     game.newRecord = false;
+    touch.stickyGas = false;
+    touch.gas = false;
+    keys.clear();
     game.cars.forEach((c) => {
       c.lapStart = 0;
     });
@@ -852,8 +902,11 @@
     game.now = 0;
     game.cars.forEach((c) => {
       c.lapStart = game.raceStart;
+      c.speed = 110;
     });
+    touch.stickyGas = false;
     $("countdown").hidden = true;
+    canvas.focus({ preventScroll: true });
     audio.beep(784, 0.28);
   }
 
@@ -1092,7 +1145,10 @@
     bindInput();
     showHud(false);
     setOverlay("start");
-    $("btn-start").addEventListener("click", startRace);
+    $("btn-start").addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      startRace();
+    });
     $("btn-retry").addEventListener("click", startRace);
     $("btn-menu").addEventListener("click", () => {
       game.state = "menu";
@@ -1112,6 +1168,18 @@
       toggleMute();
     });
     window.addEventListener("resize", fitCanvas);
+    window.NeonRacer = {
+      state: () => game.state,
+      snapshot: () => ({
+        state: game.state,
+        speed: game.player ? game.player.speed : 0,
+        x: game.player ? game.player.x : 0,
+        y: game.player ? game.player.y : 0,
+        laps: game.player ? game.player.laps : 0,
+        grass: game.player ? game.player.onGrass : false,
+        time: game.now,
+      }),
+    };
     requestAnimationFrame(tick);
   }
 
