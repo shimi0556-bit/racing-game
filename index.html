@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#070b14" />
+    <title>ניאון רייסר · Neon Racer</title>
+    <meta name="description" content="משחק מירוץ דפדפן דו-ממדי — 3 הקפות מול מכוניות בינה מלאכותית." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070b14'/%3E%3Cpath d='M10 40h44l-6-14H20z' fill='%2322d3ee'/%3E%3Ccircle cx='22' cy='44' r='6' fill='%23e2e8f0'/%3E%3Ccircle cx='44' cy='44' r='6' fill='%23e2e8f0'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&family=Orbitron:wght@500;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game" aria-label="מסלול המירוץ"></canvas>
+
+      <header id="hud" hidden>
+        <div class="hud-card" id="hud-pos">
+          <span class="hud-label" data-i18n="pos">מיקום</span>
+          <strong id="pos-value">1</strong>
+        </div>
+        <div class="hud-card" id="hud-lap">
+          <span class="hud-label" data-i18n="lap">הקפה</span>
+          <strong id="lap-value">1 / 3</strong>
+        </div>
+        <div class="hud-card" id="hud-time">
+          <span class="hud-label" data-i18n="time">זמן</span>
+          <strong id="time-value">00:00.0</strong>
+        </div>
+        <div class="hud-card" id="hud-best">
+          <span class="hud-label" data-i18n="best">שיא</span>
+          <strong id="best-value">--:--.-</strong>
+        </div>
+        <div class="hud-card hud-speed">
+          <span class="hud-label" data-i18n="speed">מהירות</span>
+          <strong><span id="speed-value">0</span> <small>km/h</small></strong>
+        </div>
+      </header>
+
+      <aside id="standings" hidden>
+        <h2 data-i18n="standings">דירוג</h2>
+        <ol id="standings-list"></ol>
+      </aside>
+
+      <div id="countdown" hidden></div>
+
+      <div id="touch" hidden>
+        <div class="touch-cluster touch-steer">
+          <button type="button" data-touch="left" aria-label="שמאלה">◀</button>
+          <button type="button" data-touch="right" aria-label="ימינה">▶</button>
+        </div>
+        <div class="touch-cluster touch-pedals">
+          <button type="button" data-touch="brake" aria-label="בלם">▬</button>
+          <button type="button" data-touch="gas" aria-label="גז">▲</button>
+        </div>
+      </div>
+
+      <div id="toolbar">
+        <button type="button" id="btn-lang" class="icon-btn" title="Language">EN</button>
+        <button type="button" id="btn-mute" class="icon-btn" data-i18n-title="mute" title="השתק">♪</button>
+      </div>
+
+      <section id="overlay" class="overlay">
+        <div class="panel" id="panel-start">
+          <p class="eyebrow" data-i18n="eyebrow">לילה על האספלט</p>
+          <h1>ניאון רייסר</h1>
+          <p class="subtitle">Neon Racer</p>
+          <p class="lead" data-i18n="lead">
+            שלוש הקפות במסלול לילי מול שלוש מכוניות יריבות. הישארו על הכביש, חתכו פניות בזהירות, ונצחו את השעון.
+          </p>
+          <ul class="controls-list">
+            <li data-i18n="ctrl_kb">מקלדת: חצים או WASD · בלם: Space</li>
+            <li data-i18n="ctrl_touch">מובייל: כפתורי הגה וגז על המסך</li>
+            <li data-i18n="ctrl_mute">M להשתקה · R להתחלה מחדש אחרי סיום</li>
+          </ul>
+          <p class="record" id="menu-record"></p>
+          <div class="actions">
+            <button type="button" id="btn-start" class="primary" data-i18n="start">התחל מירוץ</button>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-finish" hidden>
+          <p class="eyebrow" id="finish-eyebrow" data-i18n="finished">סיום המירוץ</p>
+          <h1 id="finish-title">מקום 1</h1>
+          <p class="lead" id="finish-lead"></p>
+          <dl class="results">
+            <div>
+              <dt data-i18n="time">זמן</dt>
+              <dd id="finish-time">00:00.0</dd>
+            </div>
+            <div>
+              <dt data-i18n="bestlap">הקפה מהירה</dt>
+              <dd id="finish-lap">00:00.0</dd>
+            </div>
+            <div>
+              <dt data-i18n="best">שיא</dt>
+              <dd id="finish-best">--:--.-</dd>
+            </div>
+          </dl>
+          <p class="record" id="finish-record" hidden data-i18n="new_record">★ שיא חדש!</p>
+          <div class="actions">
+            <button type="button" id="btn-retry" class="primary" data-i18n="retry">שחק שוב</button>
+            <button type="button" id="btn-menu" class="ghost" data-i18n="menu">תפריט</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <script src="js/game.js"></script>
+  </body>
+</html>
